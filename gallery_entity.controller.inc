@@ -55,14 +55,18 @@ class GalleryEntityController extends EntityAPIController {
   		if($folder_item != "." && $folder_item != ".."){
   			$new_path = $path.$folder_item;
   			$first_slash_pos = strpos($folder_item, "_");
+  			$last_slash_pos = strrpos($folder_item, "_");
   			//Miramos si el elemento tiene los 3 numeros inciales (peso del termino de taxonomia o la imagen de galeria)
-  			$item_weight = (int) substr($folder_item, 0, $first_slash_pos);
+  			//$item_weight = (int) substr($folder_item, 0, $first_slash_pos);
+  			//Miramos si el elemento tiene los 3 numeros finales (peso del termino de taxonomia o la imagen de galeria)
+  			$item_weight = (int) substr($folder_item, -3);
   			$have_weight = (
   					($first_slash_pos && $item_weight != 0) ||
-  					($first_slash_pos && $item_weight == 0 && substr($folder_item, 0, 1) == '0' && substr($folder_item, 1, 1) == '0' && substr($folder_item, 2, 1) == '0')
+  					($first_slash_pos && $item_weight == 0 && substr($folder_item, -1) == '0' && substr($folder_item, -2, 1) == '0' && substr($folder_item, -3, 1) == '0')
   			)? TRUE : FALSE;
   			if($have_weight){
-  				$item_name = str_replace("_", " ", substr($folder_item, $first_slash_pos+1));
+  				//$item_name = str_replace("_", " ", substr($folder_item, $first_slash_pos+1));
+  				$item_name = str_replace("_", " ", substr($folder_item, 0, $last_slash_pos));
   				//Check if the new item is taxonomy structure or gallery image
   				if(is_dir($new_path)){
   					$parent_id = ($level != 0 && isset($parents_ids[$level-1]))? $parents_ids[$level-1][count($parents_ids[$level-1])-1] : NULL;
