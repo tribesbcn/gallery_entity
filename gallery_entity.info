@@ -1,0 +1,15 @@
+name = Gallery Entity
+description = Creates a new entity to store image galleries
+package = TRT Development
+core = 7.x
+
+dependencies[] = entity
+dependencies[] = views
+dependencies[] = taxonomy
+dependencies[] = image
+
+
+files[] = gallery_entity.module
+files[] = gallery_entity.install
+
+files[] = gallery_entity.controller.inc

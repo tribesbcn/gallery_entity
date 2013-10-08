@@ -1,0 +1,288 @@
+<?php
+
+/**
+ * Implements hook_schema().
+ */
+function gallery_entity_schema() {
+  $schema = array();
+
+  $schema['gallery_entity'] = array(
+    'description' => 'The base table for tasks.',
+    'fields' => array(
+      'gid' => array(
+        'description' => 'The primary identifier for the gallery.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => 'The type (bundle) of this task.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'name' => array(
+        'description' => 'The gallery name.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'uid' => array(
+        'description' => 'ID of Drupal user creator.',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the task was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'changed' => array(
+        'description' => 'The Unix timestamp when the task was most recently saved.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'status' => array(
+        'description' => 'The gallery publish state.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+      'restricted_access' => array(
+        'description' => 'Indicates if gallery have restricted access.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('gid'),
+  );
+  
+  $schema['gallery_entity_type'] = array(
+    'description' => 'Stores information about all defined gallery types.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique task type ID.',
+      ),
+      'type' => array(
+        'description' => 'The machine-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => 'The human-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'description' => 'A brief description of this type.',
+        'type' => 'text',
+        'not null' => TRUE,
+        'size' => 'medium',
+        'translatable' => TRUE,
+      ),
+    ) + entity_exportable_schema_fields(),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'type' => array('type'),
+    ),
+  );
+
+  return $schema;
+}
+/**
+* Implements hook_install()
+*/
+function gallery_entity_install() {
+  //Taxonomy: creation of vocabulary 'gallery_category'
+  $vocabularies = taxonomy_vocabulary_get_names();
+  $vid = FALSE;
+  if(isset($vocabularies['gallery_category'])){
+    $voc_obj = (object) $vocabularies['gallery_category'];
+    $vid = $voc_obj->vid;
+  }
+  if(!$vid){
+    //Taxonomy Vocabulary creation
+    $vocabulary = array(
+      'name' => t('Gallery Category'),
+      'machine_name' => 'gallery_category',
+      'description' => t('Taxonomy categorization for gallery items'),
+      'hierarchy' => 1,
+      'module' => 'gallery_entity',
+      'weight' => 1
+    );
+    $vocabulary = (object) $vocabulary;
+    taxonomy_vocabulary_save($vocabulary);
+    $vid = $vocabulary->vid;
+  }
+  //Creates the entity type (Fashion Show)
+  $gallery_type = (object)array(
+    'type' => 'fashion_show',
+    'label' => 'Fashion Show',
+    'weight' => 0,
+    'description' => 'A gallery with categories, to show pictures of the fashion shows.',
+    'is_new' => TRUE,
+  );
+  entity_save('gallery_entity_type', $gallery_type);
+  
+  /*
+  ** GALLERY ENTITY FIELDS (FASHION SHOW TYPE)  
+  **/
+  //Category (Taxonomy term reference)
+  $field = field_info_field('gallery_category');
+  if(empty($field)){
+    $field = array(
+      'field_name' => 'gallery_category',
+      'type' => 'taxonomy_term_reference',
+      'settings' => array(
+        'allowed_values' => array(
+          array(
+            'vocabulary' => 'gallery_category',
+            'parent' => 0
+          )
+        )
+      ),
+    );
+    field_create_field($field);
+  }
+  $instance = field_info_instance('gallery_entity', 'gallery_category', 'fashion_show');
+  if(empty($instance)){
+    $instance = array(
+      'field_name' => 'gallery_category',
+      'entity_type' => 'gallery_entity',
+      'bundle' => 'fashion_show',
+      'label' => t('Gallery category'),
+      'description' => '',
+      'required' => TRUE,
+      'widget' => array(
+        'type' => 'options_select',
+        'weight' => -10,
+      )
+    );
+    $instance = field_create_instance($instance);
+  }
+  //Create directory public://fashion_show/ to store the gallery images for fashion show Gallery Type
+  $gallery_type_directory = 'public://fashion_show/';
+  if(!file_prepare_directory($gallery_type_directory, FILE_CREATE_DIRECTORY))
+    file_prepare_directory($gallery_type_directory, FILE_MODIFY_PERMISSIONS);
+  //Gallery image
+  $field = field_info_field('gallery_image');
+  if(empty($field)){
+    $field = field_create_field(array(
+      'field_name' => 'gallery_image',
+      'type' => 'image',
+      'cardinality' => FIELD_CARDINALITY_UNLIMITED,
+    ));
+  }
+  $instance = field_info_instance('gallery_entity', 'gallery_image', 'fashion_show');
+  if(empty($instance)){
+    $instance = array(
+      'field_name' => 'gallery_image',
+      'entity_type' => 'gallery_entity',
+      'bundle' => 'fashion_show',
+      'label' => t('Gallery image'),
+      
+      'settings' => array(
+        'alt_field' => 0,
+        'file_directory' => 'fashion_show',
+        'file_extensions' => 'png gif jpg jpeg',
+        'max_filesize' => '',
+        'max_resolution' => '',
+        'min_resolution' => '',
+        'title_field' => 1,
+        'user_register_form' => FALSE,
+      ),
+      'widget' => array(
+        'type' => 'image_image',
+        'settings' => array(
+          'preview_image_style' => 'thumbnail',
+          'progress_indicator' => 'throbber',
+          'weight' => 10,
+        ),
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'hidden',
+          'type' => 'image',
+          'settings' => array('image_style' => 'medium', 'image_link' => ''),
+          'weight' => 10,
+        ),
+        'teaser' => array(
+          'label' => 'hidden',
+          'type' => 'image',
+          'settings' => array('image_style' => 'thumbnail', 'image_link' => 'content'),
+          'weight' => 10,
+        ),
+      ),
+    );
+    $instance = field_create_instance($instance);
+  }
+}
+/**
+* Implements hook_uninstall()
+*/
+function gallery_entity_uninstall(){
+  //Delete the custom field instance
+  $instance_category = field_info_instance('gallery_entity', 'gallery_category', 'fashion_show');
+  if(!empty($instance_category)) field_delete_instance($instance_category);
+  
+  $gallery_entity_types = db_select('gallery_entity_type', 'gt')->fields('gt')->execute();
+  foreach($gallery_entity_types as $record){
+    //Delete custom images field for all gallery types
+    $g_type = $record->type;
+    $instance_image = field_info_instance('gallery_entity', 'gallery_image', $g_type);
+    if(!empty($instance_image)) field_delete_instance($instance_image);
+    //dpm($record);
+    //Delete the custom image folder with the type machine_name
+    $gallery_type_directory = 'public://'.$g_type.'/';
+    //drupal_rmdir($gallery_type_directory);
+  }
+  
+  //Delete custom actions created in module
+  $num_deleted = db_delete('actions')->condition('type', 'gallery_entity', '=')->execute();
+  
+  //$field = field_info_field('gallery_image');
+  //if(!empty($field)) field_delete_field($field['field_name']);
+  
+  //Delete the taxonomy vocabulary created in the module
+  $vocabularies = taxonomy_vocabulary_get_names();
+  $vid = FALSE;
+  if(isset($vocabularies['gallery_category'])){
+    $voc_obj = (object) $vocabularies['gallery_category'];
+    $vid = $voc_obj->vid;
+  }
+  if($vid) taxonomy_vocabulary_delete($vid);
+}
+/**
+* Implements hook_disable() 
+*/
+function gallery_entity_disable(){
+  //Delete all the gallery image item and its fields.
+  $all_gallery_entity = entity_load('gallery_entity');
+  foreach($all_gallery_entity as $entity_item){
+    //Keep the fid of gallery images
+    $wrapper = entity_metadata_wrapper('gallery_entity', $entity_item);
+    $image_list = $wrapper->gallery_image;
+    $image_fids = array();
+    foreach($image_list as $g_img){
+      $image_fids[] = $g_img->file->fid->value();
+    }
+    //dpm($entity_item);
+    entity_delete('gallery_entity', entity_id('gallery_entity', $entity_item));
+    //Gallery images deletion from file_managed
+    foreach($image_fids as $fid){
+      $file = file_load($fid);
+      if($file) file_delete($file);
+    }
+  } 
+}
+

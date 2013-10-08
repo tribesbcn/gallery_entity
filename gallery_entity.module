@@ -1,0 +1,721 @@
+<?php
+
+/**
+ * Implements hook_entity_info().
+ */
+function gallery_entity_entity_info() {
+  $return = array(
+    'gallery_entity' => array(
+      'label' => t('Gallery'),
+      'entity class' => 'GalleryEntity',
+      'controller class' => 'GalleryEntityController',
+      'base table' => 'gallery_entity',
+      'fieldable' => TRUE,
+      'entity keys' => array(
+        'id' => 'gid',
+        'bundle' => 'type',
+      ),
+      'bundle keys' => array(
+        'bundle' => 'type',
+      ),
+      'bundles' => array(),
+      'load hook' => 'gallery_entity_load',
+      'views controller class' => 'GalleryEntityViewsController',
+      'view modes' => array(
+        'full' => array(
+          'label' => t('Default'),
+          'custom settings' => FALSE,
+        ),
+      ),
+      'label callback' => 'entity_class_label',
+      'uri callback' => 'entity_class_uri',
+      'module' => 'gallery_entity',
+      'access callback' => 'gallery_entity_access',
+    ),
+  );
+  $return['gallery_entity_type'] = array(
+    'label' => t('Gallery Type'),
+    'entity class' => 'GalleryEntityType',
+    'controller class' => 'GalleryEntityTypeController',
+    'base table' => 'gallery_entity_type',
+    'fieldable' => FALSE,
+    'bundle of' => 'gallery_entity',
+    'exportable' => TRUE,
+    'entity keys' => array(
+      'id' => 'id',
+      'name' => 'type',
+      'label' => 'label',
+    ),
+    'module' => 'gallery_entity',
+    // Enable the entity API's admin UI.
+    'admin ui' => array(
+      'path' => 'admin/structure/gallery-types',
+      'file' => 'gallery_entity.admin.inc',
+      'controller class' => 'GalleryEntityTypeUIController',
+    ),
+    'access callback' => 'gallery_entity_type_access',
+  );
+
+  return $return;
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ */
+function gallery_entity_entity_info_alter(&$entity_info) {
+  foreach (gallery_entity_types() as $type => $info) {
+    $entity_info['gallery_entity']['bundles'][$type] = array(
+      'label' => $info->label,
+      'admin' => array(
+        'path' => 'admin/structure/gallery-types/manage/%gallery_entity_type',
+        'real path' => 'admin/structure/gallery-types/manage/' . $type,
+        'bundle argument' => 4,
+      ),
+    );
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function gallery_entity_menu() {
+  $items = array();
+  
+  // *** MENU OPTIONS FOR MY SELECTION ***
+  $items['my_selection'] = array(
+    'title' => 'My selection',
+    'page callback' => 'gallery_entity_view_selected_images',
+    'access callback' => 'user_access',
+    'access arguments' => array('download gallery_entity images'),
+    'file' => 'gallery_entity.pages.inc',
+    'menu_name=' => 'main-menu',
+    'type' => MENU_NORMAL_ITEM,
+    'weight' => 100,
+  );
+  $items['my_selection/empty'] = array(
+    'title' => 'Empty MY selection',
+    'page callback' => 'gallery_entity_empty_selection',
+    'access callback' => 'user_access',
+    'access arguments' => array('download gallery_entity images'),
+    'file' => 'gallery_entity.pages.inc',
+    'type' => MENU_LOCAL_ACTION,
+    'tab_parent' => 'my_selection',
+    'tab_root' => 'my_selection',
+    'weight' => 1,
+  );
+  $items['my_selection/zip'] = array(
+    'title' => 'Create ZIP and download',
+    'page callback' => 'gallery_entity_zip_selection',
+    'access callback' => 'user_access',
+    'access arguments' => array('download gallery_entity images'),
+    'file' => 'gallery_entity.pages.inc',
+    'type' => MENU_LOCAL_ACTION,
+    'tab_parent' => 'my_selection',
+    'tab_root' => 'my_selection',
+    'weight' => 2,
+  );
+  $items['my_selection/add/%'] = array(
+    'title' => 'Add image to selection',
+    'page callback' => 'gallery_entity_add_image_to_selected',
+    'page arguments' => array(2),
+    'access callback' => 'user_access',
+    'access arguments' => array('download gallery_entity images'),
+    'file' => 'gallery_entity.pages.inc',
+    'type' => MENU_CALLBACK,
+  );
+  $items['my_selection/remove/%'] = array(
+    'title' => 'Add image to selection',
+    'page callback' => 'gallery_entity_remove_image_from_selected',
+    'page arguments' => array(2),
+    'access callback' => 'user_access',
+    'access arguments' => array('download gallery_entity images'),
+    'file' => 'gallery_entity.pages.inc',
+    'type' => MENU_CALLBACK,
+  );
+  // *** END MENU OPTIONS FOR MY SELECTION ***
+  
+  // *** MENU OPTIONS FOR GALLERY ADMINISTRATION ***
+  $items['gallery/add'] = array(
+    'title' => 'Add gallery',
+    'page callback' => 'gallery_entity_admin_add_page',
+    'access arguments' => array('administer gallery_entity entities'),
+    'file' => 'gallery_entity.admin.inc',
+    'type' => MENU_LOCAL_ACTION,
+    'tab_parent' => 'gallery',
+    'tab_root' => 'gallery',
+    'weight' => 1,
+  );
+  
+  $items['gallery/import_folder'] = array(
+    'title' => 'Import images from FTP folder',
+    'page callback' => 'gallery_entity_admin_import_folder',
+    'access arguments' => array('administer gallery_entity entities'),
+    'file' => 'gallery_entity.admin.inc',
+    'type' => MENU_LOCAL_ACTION,
+    'tab_parent' => 'gallery',
+    'tab_root' => 'gallery',
+    'weight' => 2,
+  );
+  $items['gallery/user/autocomplete'] = array(
+    'title' => 'User autocomplete',
+    'page callback' => 'gallery_entity_admin_user_autocomplete',
+    'access arguments' => array('administer gallery_entity entities'),
+    'type' => MENU_CALLBACK,
+    'file' => 'gallery_entity.admin.inc',
+  );
+  $items['gallery/user_role/autocomplete'] = array(
+    'title' => 'User autocomplete',
+    'page callback' => 'gallery_entity_admin_user_role_autocomplete',
+    'access arguments' => array('administer gallery_entity entities'),
+    'type' => MENU_CALLBACK,
+    'file' => 'gallery_entity.admin.inc',
+  );
+  // *** END MENU OPTIONS FOR GALLERY ADMINISTRATION ***
+  
+  // *** MENU OPTIONS FOR GALLERY ***
+  $gallery_uri = 'gallery/%gallery_entity';
+  $gallery_uri_argument_position = 1;
+
+  $items[$gallery_uri] = array(
+    'title callback' => 'entity_label',
+    'title arguments' => array('gallery_entity', $gallery_uri_argument_position),
+    'page callback' => 'gallery_entity_view',
+    'page arguments' => array($gallery_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('view', 'gallery_entity', $gallery_uri_argument_position),
+    'file' => 'gallery_entity.pages.inc',
+  );
+  $items[$gallery_uri.'/zip'] = array(
+    'title callback' => 'entity_label',
+    'title arguments' => array('gallery_entity', $gallery_uri_argument_position),
+    'page callback' => 'gallery_entity_zip_gallery',
+    'page arguments' => array($gallery_uri_argument_position),
+    'access callback' => 'user_access',
+    'access arguments' => array('download gallery_entity images'),
+    'file' => 'gallery_entity.pages.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[$gallery_uri . '/view'] = array(
+    'title' => 'View',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+
+  $items[$gallery_uri . '/delete'] = array(
+    'title' => 'Delete gallery',
+    'title callback' => 'gallery_entity_label',
+    'title arguments' => array($gallery_uri_argument_position),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('gallery_entity_delete_form', $gallery_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'gallery_entity', $gallery_uri_argument_position),
+    'file' => 'gallery_entity.admin.inc',
+  );
+
+  $items[$gallery_uri . '/edit'] = array(
+    'title' => 'Edit',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('gallery_entity_form', $gallery_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'gallery_entity', $gallery_uri_argument_position),
+    'file' => 'gallery_entity.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+  );
+  // *** END MENU OPTIONS FOR GALLERY ***
+
+  // *** MENU OPTIONS FOR GALLERY TYPES ***
+  foreach (gallery_entity_types() as $type => $info) {
+    $items['gallery/add/' . $type] = array(
+      'title' => 'Add gallery',
+      'page callback' => 'gallery_entity_add',
+      'page arguments' => array(2),
+      'access callback' => 'entity_access',
+      'access arguments' => array('create', 'gallery_entity', $type),
+      'file' => 'gallery_entity.admin.inc',
+    );
+  }
+
+  $items['admin/structure/gallery-types/%gallery_entity_type/delete'] = array(
+    'title' => 'Delete',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('gallery_entity_type_form_delete_confirm', 4),
+    'access arguments' => array('administer gallery_entity types'),
+    'weight' => 1,
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'gallery_entity.admin.inc',
+  );
+  // *** MENU OPTIONS FOR GALLERY TYPES ***
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function gallery_entity_permission() {
+  $permissions = array(
+    'administer gallery_entity types' => array(
+      'title' => t('Administer gallery types'),
+      'description' => t('Allows users to configure gallery types and their fields.'),
+      'restrict access' => TRUE,
+    ),
+    'create gallery_entity entities' => array(
+      'title' => t('Create galleries'),
+      'description' => t('Allows users to create galleries.'),
+      'restrict access' => TRUE,
+    ),
+    'view gallery_entity entities' => array(
+      'title' => t('View galleries'),
+      'description' => t('Allows users to view galleries.'),
+      'restrict access' => TRUE,
+    ),
+    'download gallery_entity images' => array(
+      'title' => t('Download galleries original images'),
+      'description' => t('Allows users to download original images from galleries.'),
+      'restrict access' => TRUE,
+    ),
+    'edit any gallery_entity entities' => array(
+      'title' => t('Edit any galleries'),
+      'description' => t('Allows users to edit any galleries.'),
+      'restrict access' => TRUE,
+    ),
+    'edit own gallery_entity entities' => array(
+      'title' => t('Edit own galleries'),
+      'description' => t('Allows users to edit own galleries.'),
+      'restrict access' => TRUE,
+    ),
+  );
+
+  return $permissions;
+}
+
+
+/**
+ * Implements hook_entity_property_info_alter().
+ */
+function gallery_entity_entity_property_info_alter(&$info) {
+  $properties = &$info['gallery_entity']['properties'];
+  $properties['created'] = array(
+    'label' => t("Date created"),
+    'type' => 'date',
+    'description' => t("The date the node was posted."),
+    'setter callback' => 'entity_property_verbatim_set',
+    'setter permission' => 'administer nodes',
+    'schema field' => 'created',
+  );
+  $properties['changed'] = array(
+    'label' => t("Date changed"),
+    'type' => 'date',
+    'schema field' => 'changed',
+    'description' => t("The date the node was most recently updated."),
+  );
+  $properties['uid'] = array(
+    'label' => t("Author"),
+    'type' => 'user',
+    'description' => t("The author of the gallery."),
+    'setter callback' => 'entity_property_verbatim_set',
+    'setter permission' => 'administer gallery_entity entities',
+    'required' => TRUE,
+    'schema field' => 'uid',
+  );
+}
+
+
+/*******************************************************************************
+ ********************************* Gallery API's **********************************
+ ******************************************************************************/
+
+/**
+ * Access callback for gallery.
+ */
+function gallery_entity_access($op, $gallery, $account = NULL, $entity_type = NULL) {
+  global $user;
+
+  if (!isset($account)) {
+    $account = $user;
+  }
+  switch ($op) {
+    case 'create':
+      return user_access('administer gallery_entity entities', $account)
+          || user_access('create gallery_entity entities', $account);
+    case 'view':
+      return user_access('administer gallery_entity entities', $account)
+          || user_access('view gallery_entity entities', $account);
+    case 'edit':
+      return user_access('administer gallery_entity entities')
+          || user_access('edit any gallery_entity entities')
+          || (user_access('edit own gallery_entity entities') && ($gallery->uid == $account->uid));
+  }
+}
+
+/**
+ * Load a gallery.
+ */
+function gallery_entity_load($gid, $reset = FALSE) {
+  $galleries = gallery_entity_load_multiple(array($gid), array(), $reset);
+  return reset($galleries);
+}
+
+/**
+ * Load multiple galleries based on certain conditions.
+ */
+function gallery_entity_load_multiple($gids = array(), $conditions = array(), $reset = FALSE) {
+  return entity_load('gallery_entity', $gids, $conditions, $reset);
+}
+
+/**
+ * Save gallery.
+ */
+function gallery_entity_save($gallery) {
+  entity_save('gallery_entity', $gallery);
+}
+
+/**
+ * Convert gallery to private
+ */
+function gallery_entity_convert_to_private($gallery) {
+  $gallery->restricted_access = 1;
+  gallery_entity_save($gallery);
+}
+
+/**
+ * Convert gallery to private
+ */
+function gallery_entity_convert_to_public($gallery) {
+  $gallery->restricted_access = 0;
+  gallery_entity_save($gallery);
+}
+
+/**
+ * Delete single gallery.
+ */
+function gallery_entity_delete($gallery) {
+  //Keep the fid of gallery images
+  $wrapper = entity_metadata_wrapper('gallery_entity', $gallery);
+  $image_list = $wrapper->gallery_image;
+  $image_fids = array();
+  foreach($image_list as $g_img){
+    $image_fids[] = $g_img->file->fid->value();
+  }
+  //dpm($image_fids);
+  //Delete the entity
+  entity_delete('gallery_entity', entity_id('gallery_entity' ,$gallery));
+  //Gallery images deletion from file_managed
+  foreach($image_fids as $fid){
+    $file = file_load($fid);
+    if($file) file_delete($file);
+  }
+}
+
+/**
+ * Delete multiple galleries.
+ */
+function gallery_entity_delete_multiple($gallery_ids) {
+  entity_delete_multiple('gallery_entity', $gallery_ids);
+}
+/**
+  * Implements hook_field_extra_fields()
+  */
+function gallery_entity_field_extra_fields() {
+  $form_elements['name'] = array(
+    'label' => t('Name'),
+    'description' => t('Gallery name'),
+    'weight' => 0,
+  );
+  $display_elements['name'] = array(
+    'label' => t('Name'),
+    'description' => t('Gallery name'),
+    'weight' => 0,
+  );
+  $extra_fields['gallery_entity']['fashion_show']['form'] = $form_elements; 
+  $extra_fields['gallery_entity']['fashion_show']['display'] = $display_elements;
+  return $extra_fields;
+}
+
+/*******************************************************************************
+ ****************************** Gallery Type API's ********************************
+ ******************************************************************************/
+
+/**
+ * Access callback for gallery Type.
+ */
+function gallery_entity_type_access($op, $entity = NULL) {
+  return user_access('administer gallery_entity types');
+}
+
+/**
+ * Load gallery Type.
+ */
+function gallery_entity_type_load($gallery_type) {
+  return gallery_entity_types($gallery_type);
+}
+
+/**
+ * List of gallery Types.
+ */
+function gallery_entity_types($type_name = NULL) {
+  $types = entity_load_multiple_by_name('gallery_entity_type', isset($type_name) ? array($type_name) : FALSE);
+  return isset($type_name) ? reset($types) : $types;
+}
+
+/**
+ * Save gallery type entity.
+ */
+function gallery_entity_type_save($gallery_type) {
+  //dpm($gallery_type);
+  entity_save('gallery_entity_type', $gallery_type);
+  
+  //Create directory public://fashion_show/ to store the gallery images for fashion show Gallery Type
+  $gallery_type_machine_name = $gallery_type->type;
+  $gallery_type_directory = 'public://'.$gallery_type_machine_name.'/';
+  if(!file_prepare_directory($gallery_type_directory, FILE_CREATE_DIRECTORY))
+    file_prepare_directory($gallery_type_directory, FILE_MODIFY_PERMISSIONS);
+  //Gallery image
+  $field = field_info_field('gallery_image');
+  if(empty($field)){
+    $field = field_create_field(array(
+      'field_name' => 'gallery_image',
+      'type' => 'image',
+      'cardinality' => FIELD_CARDINALITY_UNLIMITED,
+    ));
+  }
+  $instance = field_info_instance('gallery_entity', 'gallery_image', $gallery_type_machine_name);
+  if(empty($instance)){
+    $instance = array(
+      'field_name' => 'gallery_image',
+      'entity_type' => 'gallery_entity',
+      'bundle' => $gallery_type_machine_name,
+      'label' => t('Gallery image'),
+      
+      'settings' => array(
+        'alt_field' => 0,
+        'file_directory' => $gallery_type_machine_name,
+        'file_extensions' => 'png gif jpg jpeg',
+        'max_filesize' => '',
+        'max_resolution' => '',
+        'min_resolution' => '',
+        'title_field' => 1,
+        'user_register_form' => FALSE,
+      ),
+      'widget' => array(
+        'type' => 'image_image',
+        'settings' => array(
+          'preview_image_style' => 'thumbnail',
+          'progress_indicator' => 'throbber',
+          'weight' => 10,
+        ),
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'hidden',
+          'type' => 'image',
+          'settings' => array('image_style' => 'medium', 'image_link' => ''),
+          'weight' => 10,
+        ),
+        'teaser' => array(
+          'label' => 'hidden',
+          'type' => 'image',
+          'settings' => array('image_style' => 'thumbnail', 'image_link' => 'content'),
+          'weight' => 10,
+        ),
+      ),
+    );
+    $instance = field_create_instance($instance);
+  }
+  
+}
+
+/**
+ * Delete single case type.
+ */
+function gallery_entity_type_delete($gallery_type) {
+  entity_delete('gallery_entity_type', entity_id('gallery_entity_type' ,$gallery_type));
+  //Delete the entity fields
+  $gallery_type_machine_name = $gallery_type->type;
+  $instance_image = field_info_instance('gallery_entity', 'gallery_image', $gallery_type_machine_name);
+  if(!empty($instance_image)) field_delete_instance($instance_image);
+  //Delete the custom image folder with the type machine_name
+  $gallery_type_directory = 'public://'.$gallery_type_machine_name.'/';
+  //drupal_rmdir($gallery_type_directory);
+}
+
+/**
+ * Delete multiple case types.
+ */
+function gallery_entity_type_delete_multiple($gallery_type_ids) {
+  entity_delete_multiple('gallery_entity_type', $gallery_type_ids);
+}
+
+/**
+  * Implements hook_views_api().
+  */
+function gallery_entity_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'gallery_entity'),
+  );
+}
+/**
+* ENTITY THEME AND PREPROCESS FUNCTIONS 
+*/
+/**
+ * Implements hook_theme().
+ * Template functions definition and passed arguments.
+ */
+
+function gallery_entity_theme($existing, $type, $theme, $path) {
+  $types = array_keys(entity_crud_get_info());
+  $pattern = '(' . implode('|', $types) . ')(\.|__)';
+  return array(
+    'gallery_entity' => array(
+      'render element' => 'elements',
+      'template' => 'gallery_entity',
+      'pattern' => $pattern,
+    ),
+    'my_selection' => array(
+      'template' => 'my_selection',
+        'variables' => array(
+          'images' => NULL,
+        ),
+    ),
+  );
+}
+
+/**
+ * Preprocess the view info for gallery_entity theme (gallery_entity.tpl.php)
+ */
+function gallery_entity_preprocess_entity(&$variables){
+  drupal_add_library('system', 'drupal.ajax');
+  $content = $variables['content'];
+  $gallery_entity = $variables['elements']['#entity'];
+  if(user_access('download gallery_entity images')){
+    $content['zip_link'] = array(
+      '#markup' => l(t('Create ZIP and download'), 'gallery/'.$gallery_entity->gid.'/zip'),
+      '#weight' => 1,
+    ); 
+  }
+  //dpm($content);
+  if(isset($content['gallery_image'])){
+    $gallery_image_items = $content['gallery_image']['#items'];
+    foreach($gallery_image_items as $key => $image_item){
+      $image_render_item = $content['gallery_image'][$key];
+      $image_render_item['#prefix'] = '<div class="gallery_entity_image_box">';
+      $image_add_selection_url = 'my_selection/add/'.$image_item['fid'];
+      $image_remove_selection_url = 'my_selection/remove/'.$image_item['fid'];
+      $star_off_img = '<img src="/'.drupal_get_path('module', 'gallery_entity').'/img/star_off.png'.'" alt="'.t('Add to selection').'" />';
+      $star_on_img = '<img src="/'.drupal_get_path('module', 'gallery_entity').'/img/star_on.png'.'" alt="'.t('Remove from selection').'" />';
+      $add_link = l($star_off_img, $image_add_selection_url, array('attributes' => array('class' => 'use-ajax'), 'html' => TRUE));
+      $remove_link = l($star_on_img, $image_remove_selection_url, array('attributes' => array('class' => 'use-ajax'), 'html' => TRUE));
+      $my_selection = (isset($_SESSION['my_selection']) && $_SESSION['my_selection'] != NULL)? $_SESSION['my_selection'] : array();
+      $final_link = (isset($my_selection[$image_item['fid']]))? $remove_link : $add_link;
+      $suffix_text = '<p align="center"><span id="image-'.$image_item['fid'].'-title" class="image-title">'.$image_item['title'].'</span>';
+      if(user_access('download gallery_entity images')) $suffix_text .= '<br/><span id="image-'.$image_item['fid'].'-link" class="image-link">'.$final_link.'</span>';
+      $suffix_text .= '</p>';
+      //dpm($image_item);
+      $image_render_item['#suffix'] = $suffix_text.'</div>';
+      $content['gallery_image'][$key] = $image_render_item;
+    }
+  }
+  $variables['content'] = $content;
+  drupal_add_css(drupal_get_path('module', 'gallery_entity').'/css/gallery.css');
+  drupal_add_js(drupal_get_path('module', 'gallery_entity').'/js/gallery.selection.js');
+  //dpm($variables);
+}
+
+/**
+ * Preprocess the view info for my_selection theme (my_selection.tpl.php)
+ */
+function gallery_entity_preprocess_my_selection(&$variables){
+  //dpm($variables);
+  drupal_add_library('system', 'drupal.ajax');
+  
+  $my_selection = $variables['images'];
+  $content = array();
+  foreach($my_selection as $fid => $file){
+    $img_url = $file->uri;
+    $large_url = image_style_url('large', $img_url);
+    $medium_url = image_style_url('medium', $img_url);
+    $html_string = '<div class="gallery_entity_image_box">';
+    $img_styled = '<a href="'.$large_url.'" class="lightbox-processed"><img src="'.$medium_url.'" class="image_selection"/></a>';
+    
+    $image_remove_selection_url = '/my_selection/remove/'.$fid;
+    //$remove_link = l(t('Remove from selection'), $image_add_selection_url, array('attributes' => array('class' => 'use-ajax')));
+    $star_on_img = '<img src="/'.drupal_get_path('module', 'gallery_entity').'/img/star_on.png'.'" alt="'.t('Remove from selection').'" />';
+    $remove_link = '<a href="'.$image_remove_selection_url.'" class="use-ajax">'.$star_on_img.'</a>';
+    
+    $html_string .= $img_styled.'<p align="center"><span id="image-'.$fid.'-link" class="image-link">'.$remove_link.'</span></p></div>';
+    $content[] = $html_string;
+  }
+  $variables['content_items'] = $content;
+  //dpm($variables);
+    
+  drupal_add_css(drupal_get_path('module', 'gallery_entity').'/css/gallery.css');
+  //drupal_add_js(drupal_get_path('module', 'gallery_entity').'/js/gallery.selection.js');
+}
+
+/**
+* VIEWS SPECIAL OPERATIONS
+*/  
+/**
+ * Implementation of hook_action_info().
+ */
+function gallery_entity_action_info() {
+  $action = array(
+    'gallery_entity_delete_action' => array(
+      'label' => t('Delete gallery'),
+      'type' => 'gallery_entity',
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+    'gallery_entity_convert_to_private_action' => array(
+      'label' => t('Convert to private'),
+      'type' => 'gallery_entity',
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+    'gallery_entity_convert_to_public_action' => array(
+      'label' => t('Convert to public'),
+      'type' => 'gallery_entity',
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+    'gallery_entity_convert_category_to_private_action' => array(
+      'label' => t('Convert category to private'),
+      'type' => 'gallery_entity',
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+ );
+ return $action;
+}
+
+/**
+ * Action function for gallery_entity_delete_multiple_gallery.
+ */
+function gallery_entity_delete_action(&$entity, $context = array()) {
+  //dpm($entity);
+  gallery_entity_delete($entity);
+}
+/**
+ * Action function for gallery_entity_convert_to_private.
+ */
+function gallery_entity_convert_to_private_action(&$entity, $context = array()) {
+  //dpm($entity);
+  gallery_entity_convert_to_private($entity);
+}
+/**
+ * Action function for gallery_entity_convert_to_public.
+ */
+function gallery_entity_convert_to_public_action(&$entity, $context = array()) {
+  //dpm($entity);
+  gallery_entity_convert_to_public($entity);
+}
+/**
+ * Action function for gallery_entity_convert_category_to_private.
+ */
+function gallery_entity_convert_category_to_private_action(&$entity, $context = array()) {
+  // Code here.
+}
+
