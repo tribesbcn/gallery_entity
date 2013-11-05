@@ -19,7 +19,7 @@ function gallery_entity_zip_gallery($gallery, $view_mode = 'full') {
 		$gallery_have_images = isset($gallery->gallery_image) && isset($gallery->gallery_image[LANGUAGE_NONE]);
 		$gallery_image_array = ($gallery_have_images)? $gallery->gallery_image[LANGUAGE_NONE] : array();
 		//dpm($gallery_image_array);
-		$archive_uri = 'public://viewfashion_gallery_' . REQUEST_TIME . '.zip';
+		$archive_uri = 'private://viewfashion_gallery_' . REQUEST_TIME . '.zip';
 		$zip = new ZipArchive;
 		if ($zip->open(drupal_realpath($archive_uri), ZipArchive::CREATE) === TRUE) {
 			foreach ($gallery_image_array as $file) {
@@ -27,6 +27,11 @@ function gallery_entity_zip_gallery($gallery, $view_mode = 'full') {
 			}
 			$zip->close();
 			drupal_set_message(t('Zip archive successfully created. !link', array('!link' => l(t('DOWNLOAD ZIP'), file_create_url($archive_uri)))));
+			//Save message to system log.
+			$gallery_id = $gallery->gid;
+			global $user;
+			$user_id = $user->uid;
+			watchdog('gallery_entity', 'Downloaded gallery: %gallery_id by user: %user_id', array('%gallery_id' => $gallery_id, '%user_id' => $user_id), WATCHDOG_INFO);
 		}else{
 			drupal_set_message(t('Error creating Zip archive.'), 'error');
 		}
@@ -120,14 +125,20 @@ function gallery_entity_empty_selection(){
 function gallery_entity_zip_selection(){
 	$my_selection = $_SESSION['my_selection'];
 	//dpm($my_selection);
-	$archive_uri = 'public://viewfashion_selection_' . REQUEST_TIME . '.zip';
+	$archive_uri = 'private://viewfashion_selection_' . REQUEST_TIME . '.zip';
 	$zip = new ZipArchive;
 	if ($zip->open(drupal_realpath($archive_uri), ZipArchive::CREATE) === TRUE) {
+		$num_pictures = 0;
 		foreach ($my_selection as $file) {
 			$zip->addFile(drupal_realpath($file->uri), $file->filename);
+			$num_pictures++;
 		}
 		$zip->close();
 		drupal_set_message(t('Zip archive successfully created. !link', array('!link' => l(t('DOWNLOAD ZIP'), file_create_url($archive_uri)))));
+		//Save message to system log.
+		global $user;
+		$user_id = $user->uid;
+		watchdog('gallery_entity', 'Downloaded selection with %num_pictures images by user: %user_id', array('%num_pictures' => $num_pictures, '%user_id' => $user_id), WATCHDOG_INFO);
 	}else{
 		drupal_set_message(t('Error creating Zip archive.'), 'error');
 	}

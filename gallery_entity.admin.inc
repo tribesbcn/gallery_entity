@@ -159,9 +159,22 @@ function gallery_entity_admin_import_folder() {
 /**
  * JSON call for user autocomplete 
  */
-function gallery_entity_admin_user_autocomplete($json=TRUE) {
+function gallery_entity_admin_system_user_autocomplete($gallery_id, $json=TRUE) {
 	$matches = array();
 	$result = db_select('users')->fields('users', array('uid', 'name'))->condition('uid', 1, '>')->range(0, 10)->execute();
+	$subquery_string = 'SELECT gu.uid FROM {gallery_entity_user_privilege} gu WHERE gu.gid = :gid';
+	$query_string = 'SELECT u.uid, u.name FROM {users} u WHERE u.uid > 1 AND u.uid NOT IN ('.$subquery_string.') ORDER BY u.name';
+	$result = db_query($query_string, array(':gid' => $gallery_id));
+	foreach ($result as $user) {
+		$matches[$user->uid] = check_plain($user->name);
+	}
+	if($json) drupal_json_output($matches);
+	else return $matches;
+}
+
+function gallery_entity_admin_gallery_user_autocomplete($gallery_id, $json=TRUE) {
+	$matches = array();
+	$result = db_select('gallery_entity_user_privilege')->fields('gallery_entity_user_privilege', array('uid', 'name'))->condition('gid', $gallery_id, '=')->orderBy('name', 'ASC')->execute();
 	foreach ($result as $user) {
 		$matches[$user->uid] = check_plain($user->name);
 	}
@@ -212,11 +225,9 @@ function gallery_entity_form($form, &$form_state, $gallery) {
   // Node author information for administrators
   $form['author'] = array(
   		'#type' => 'fieldset',
-  		'#access' => user_access('administer gallery_entity entities'),
   		'#title' => t('Authoring information'),
   		'#collapsible' => TRUE,
   		'#collapsed' => TRUE,
-  		'#group' => 'additional_settings',
   		'#attributes' => array(
   			'class' => array('gallery-form-author'),
   		),
@@ -245,11 +256,9 @@ function gallery_entity_form($form, &$form_state, $gallery) {
   
   $form['options'] = array(
   	'#type' => 'fieldset',
-  	'#access' => user_access('administer gallery_entity entities'),
   	'#title' => t('Gallery options'),
   	'#collapsible' => TRUE,
   	'#collapsed' => FALSE,
-  	'#group' => 'additional_settings',
   	'#attributes' => array(
   		'class' => array('gallery-form-options'),
   	),
@@ -272,27 +281,60 @@ function gallery_entity_form($form, &$form_state, $gallery) {
   if($gallery->restricted_access){
 	  $form['permissions'] = array(
 	  		'#type' => 'fieldset',
-	  		'#access' => user_access('administer gallery_entity entities'),
 	  		'#title' => t('Gallery permissions'),
 	  		'#collapsible' => TRUE,
-	  		'#collapsed' => TRUE,
-	  		'#group' => 'additional_settings',
+	  		'#collapsed' => FALSE,
+	  		'#prefix' => '<div id="gallery-permissions-div">',
+	  		'#suffix' => '</div>',
 	  		'#attributes' => array(
-	  				'class' => array('gallery-form-permissions'),
+	  			'class' => array('gallery-form-permissions'),
 	  		),
 	  		'#attached' => array(
-	  				'js' => array(drupal_get_path('module', 'gallery_entity') . '/js/gallery.admin.js'),
+	  			'js' => array(drupal_get_path('module', 'gallery_entity') . '/js/gallery.admin.js'),
 	  		),
-	  		'#weight' => 100,
+	  		'#weight' => 96,
 	  );
-	  $user_options = gallery_entity_admin_user_autocomplete(FALSE);
-	  $form['permissions']['users'] = array(
+	  //$system_user_options = gallery_entity_admin_system_user_autocomplete($gallery->gid, FALSE);
+	  $form['permissions']['system_users'] = array(
 	  		'#type' => 'select',
-	  		'#title' => t('Users'),
-	  		'#options' => $user_options,
-	  		'#multiple' => true,
+	  		'#title' => t('System users'),
+	  		'#options' => gallery_entity_admin_system_user_autocomplete($gallery->gid, FALSE),
+	  		'#multiple' => TRUE,
+	  		'#default_value' => '',
+	  		'#description' => t('Users that can not access original size images'),
+	  		'#weight' => 96,
+	  );
+	  $form['permissions']['add_selected'] = array(
+	  		'#type' => 'button',
+	  		'#value' => '>>',
+	  		'#weight' => 97,
+	  		'#ajax' => array(
+	  			'callback' => 'gallery_entity_add_user_to_gallery_callback',
+	  			'wrapper' => 'gallery-permissions-div',
+	  			'method' => 'replace',
+	  			'effect' => 'fade',
+	  		),
+	  );
+	  $form['permissions']['renove_selected'] = array(
+	  		'#type' => 'button',
+	  		'#value' => '<<',
+	  		'#weight' => 98,
+	  		'#ajax' => array(
+	  			'callback' => 'gallery_entity_remove_user_from_gallery_callback',
+	  			'wrapper' => 'gallery-permissions-div',
+	  			'method' => 'replace',
+	  			'effect' => 'fade',
+	  		),
+	  );
+	  //$gallery_user_options = gallery_entity_admin_gallery_user_autocomplete($gallery->gid, FALSE);
+	  $form['permissions']['gallery_users'] = array(
+	  		'#type' => 'select',
+	  		'#title' => t('Gallery users'),
+	  		'#options' => gallery_entity_admin_gallery_user_autocomplete($gallery->gid, FALSE),
+	  		'#multiple' => TRUE,
 	  		'#default_value' => '',
 	  		'#description' => t('Users that can access original size images'),
+	  		'#weight' => 99,
 	  );
   }
   field_attach_form('gallery_entity', $gallery, $form, $form_state);
@@ -303,13 +345,14 @@ function gallery_entity_form($form, &$form_state, $gallery) {
   }
 
   $form['actions'] = array(
-    '#weight' => 100,
+    '#weight' => 99,
   );
 
   $form['actions']['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Save gallery'),
     '#submit' => $submit + array('gallery_entity_form_submit'),
+  	'#weight' => 100,
   );
 
   // Show Delete button if we edit gallery.
@@ -323,8 +366,69 @@ function gallery_entity_form($form, &$form_state, $gallery) {
   }
 
   $form['#validate'][] = 'gallery_entity_form_validate';
-
   return $form;
+}
+
+function gallery_entity_add_user_to_gallery_callback($form, &$form_state) {
+	//return $form['permissions']['gallery_users'];
+	//dpm($form_state);
+	//dpm($form);
+	$selected_users = $form_state['values']['system_users'];
+	//dpm($selected_users);
+	$gallery = $form_state['gallery'];
+	$gid = $gallery->gid;
+	//Recuperamos los valores de los options del formulario
+	$system_users_options = $form['permissions']['system_users']['#options'];
+	$gallery_users_options = $form['permissions']['gallery_users']['#options'];
+	foreach($selected_users as $uid){
+		//Guardamos el registro en la BDD
+		$user = user_load($uid);
+		$username = $user->name;
+		$inserted = db_insert('gallery_entity_user_privilege')->fields(array(
+			'gid' => $gid,
+			'uid' => $uid,
+			'name' => $username,
+		))->execute();
+		//Modificamos los valores de los options del formulario
+		unset($system_users_options[$uid]);
+		$gallery_users_options[$uid] = $username;
+	}
+	//Actualizamos los cambios en los options del formulario
+	asort($system_users_options);
+	asort($gallery_users_options);
+	$form['permissions']['system_users']['#options'] = $system_users_options;
+	$form['permissions']['gallery_users']['#options'] = $gallery_users_options;
+	//dpm($form['permissions']);
+	//$form_state['rebuild'] = TRUE;
+	return $form['permissions'];
+}
+
+function gallery_entity_remove_user_from_gallery_callback($form, &$form_state) {
+	//return $form['permissions']['system_users'];
+	$selected_users = $form_state['values']['gallery_users'];
+	//dpm($selected_users);
+	$gallery = $form_state['gallery'];
+	$gid = $gallery->gid;
+	//Recuperamos los valores de los options del formulario
+	$system_users_options = $form['permissions']['system_users']['#options'];
+	$gallery_users_options = $form['permissions']['gallery_users']['#options'];
+	foreach($selected_users as $uid){
+		//Borramos el registro de la BDD
+		$and = db_and()->condition('uid', $uid)->condition('gid', $gid);
+		$deleted = db_delete('gallery_entity_user_privilege')->condition($and)->execute();
+		//Modificamos los valores de los options del formulario
+		$user = user_load($uid);
+		$username = $user->name;
+		unset($gallery_users_options[$uid]);
+		$system_users_options[$uid] = $username;
+	}
+	//Actualizamos los cambios en los options del formulario
+	asort($system_users_options);
+	asort($gallery_users_options);
+	$form['permissions']['system_users']['#options'] = $system_users_options;
+	$form['permissions']['gallery_users']['#options'] = $gallery_users_options;
+	//$form_state['rebuild'] = TRUE;
+	return $form['permissions'];
 }
 
 function gallery_entity_form_validate($form, &$form_state) {
@@ -336,6 +440,7 @@ function gallery_entity_form_validate($form, &$form_state) {
  */
 function gallery_entity_form_submit($form, &$form_state) {
   $gallery = $form_state['gallery'];
+  //dpm($gallery);
   //dpm($form);
   //dpm($form_state);
   entity_form_submit_build_entity('gallery_entity', $gallery, $form, $form_state);

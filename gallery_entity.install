@@ -62,6 +62,40 @@ function gallery_entity_schema() {
     'primary key' => array('gid'),
   );
   
+  $schema['gallery_entity_user_privilege'] = array(
+    'description' => 'Stores information about gallery entity users privileges.',
+    'fields' => array(
+      'gid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Gallery ID.',
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Primary Key: User ID.',
+      ),
+      'name' => array(
+        'description' => 'The user name.',
+        'type' => 'varchar',
+        'length' => 60,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+    ),
+    'foreign keys' => array(
+      'gallery_fk' => array(
+        'table' => 'gallery_entity',
+        'columns' => array('gid' => 'gid'),
+      ),
+      'user_fk' => array(
+        'table' => 'users',
+        'columns' => array('uid' => 'uid'),
+      ),
+    ),
+    'primary key' => array('gid', 'uid'),
+  );
+  
   $schema['gallery_entity_type'] = array(
     'description' => 'Stores information about all defined gallery types.',
     'fields' => array(
@@ -171,7 +205,7 @@ function gallery_entity_install() {
     $instance = field_create_instance($instance);
   }
   //Create directory public://fashion_show/ to store the gallery images for fashion show Gallery Type
-  $gallery_type_directory = 'public://fashion_show/';
+  $gallery_type_directory = 'private://fashion_show/';
   if(!file_prepare_directory($gallery_type_directory, FILE_CREATE_DIRECTORY))
     file_prepare_directory($gallery_type_directory, FILE_MODIFY_PERMISSIONS);
   //Gallery image
@@ -243,7 +277,7 @@ function gallery_entity_uninstall(){
     if(!empty($instance_image)) field_delete_instance($instance_image);
     //dpm($record);
     //Delete the custom image folder with the type machine_name
-    $gallery_type_directory = 'public://'.$g_type.'/';
+    $gallery_type_directory = 'private://'.$g_type.'/';
     //drupal_rmdir($gallery_type_directory);
   }
   

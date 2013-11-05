@@ -181,7 +181,7 @@ function gallery_entity_menu() {
     'title arguments' => array('gallery_entity', $gallery_uri_argument_position),
     'page callback' => 'gallery_entity_view',
     'page arguments' => array($gallery_uri_argument_position),
-    'access callback' => 'entity_access',
+    'access callback' => 'gallery_entity_custom_access',
     'access arguments' => array('view', 'gallery_entity', $gallery_uri_argument_position),
     'file' => 'gallery_entity.pages.inc',
   );
@@ -251,12 +251,38 @@ function gallery_entity_menu() {
   return $items;
 }
 
+function gallery_entity_custom_access($operation, $entity_type, $entity = NULL){
+  $have_access = FALSE;
+  $basic_access = entity_access($operation, $entity_type, $entity);
+  if($basic_access && $entity != NULL){
+    if($entity->restricted_access){
+      //Miramos la tabla de usuarios con acceso a galerias.
+      $result = db_select('gallery_entity_user_privilege')->fields('gallery_entity_user_privilege', array('uid'))->condition('gid', $entity->gid, '=')->execute();
+      global $user;
+      $current_user_uid = $user->uid;
+      if($user->uid != 0){
+        foreach ($result as $gu) {
+          if($gu->uid == $current_user_uid){
+            $have_access = TRUE;
+            break;
+          }
+        } 
+      }
+      //Super admin access
+      if($user->uid == 1) $have_access = TRUE;
+    }else{
+      $have_access = TRUE;
+    }
+  }
+  return $have_access;
+}
+
 /**
  * Implements hook_permission().
  */
 function gallery_entity_permission() {
   $permissions = array(
-    'administer gallery_entity types' => array(
+    'administer gallery_entity entities' => array(
       'title' => t('Administer gallery types'),
       'description' => t('Allows users to configure gallery types and their fields.'),
       'restrict access' => TRUE,
@@ -469,7 +495,7 @@ function gallery_entity_type_save($gallery_type) {
   
   //Create directory public://fashion_show/ to store the gallery images for fashion show Gallery Type
   $gallery_type_machine_name = $gallery_type->type;
-  $gallery_type_directory = 'public://'.$gallery_type_machine_name.'/';
+  $gallery_type_directory = 'private://'.$gallery_type_machine_name.'/';
   if(!file_prepare_directory($gallery_type_directory, FILE_CREATE_DIRECTORY))
     file_prepare_directory($gallery_type_directory, FILE_MODIFY_PERMISSIONS);
   //Gallery image
@@ -537,7 +563,7 @@ function gallery_entity_type_delete($gallery_type) {
   $instance_image = field_info_instance('gallery_entity', 'gallery_image', $gallery_type_machine_name);
   if(!empty($instance_image)) field_delete_instance($instance_image);
   //Delete the custom image folder with the type machine_name
-  $gallery_type_directory = 'public://'.$gallery_type_machine_name.'/';
+  $gallery_type_directory = 'private://'.$gallery_type_machine_name.'/';
   //drupal_rmdir($gallery_type_directory);
 }
 
