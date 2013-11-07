@@ -399,6 +399,22 @@ function gallery_entity_save($gallery) {
 }
 
 /**
+ * Insert and update gallery. Method for pathauto implementation.
+ */
+ /*
+function gallery_entity_insert($gallery) {
+  entity_save('gallery_entity', $gallery);
+	module_load_include('inc', 'gallery_entity', 'gallery_entity.pathauto');
+  gallery_entity_update_alias($entity, 'insert');
+}
+function gallery_entity_update($gallery) {
+  entity_save('gallery_entity', $gallery);
+	module_load_include('inc', 'gallery_entity', 'gallery_entity.pathauto');
+  gallery_entity_update_alias($entity, 'update');
+}
+*/
+
+/**
  * Convert gallery to private
  */
 function gallery_entity_convert_to_private($gallery) {
@@ -433,6 +449,7 @@ function gallery_entity_delete($gallery) {
     $file = file_load($fid);
     if($file) file_delete($file);
   }
+	//pathauto_entity_path_delete_all('gallery_entity', $gallery, "gallery_entity/{$gallery->gid}");
 }
 
 /**
