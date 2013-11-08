@@ -404,30 +404,159 @@ function gallery_entity_save($gallery) {
  /*
 function gallery_entity_insert($gallery) {
   entity_save('gallery_entity', $gallery);
-	module_load_include('inc', 'gallery_entity', 'gallery_entity.pathauto');
+  module_load_include('inc', 'gallery_entity', 'gallery_entity.pathauto');
   gallery_entity_update_alias($entity, 'insert');
 }
 function gallery_entity_update($gallery) {
   entity_save('gallery_entity', $gallery);
-	module_load_include('inc', 'gallery_entity', 'gallery_entity.pathauto');
+  module_load_include('inc', 'gallery_entity', 'gallery_entity.pathauto');
   gallery_entity_update_alias($entity, 'update');
 }
 */
 
 /**
- * Convert gallery to private
+ * Publish gallery
  */
-function gallery_entity_convert_to_private($gallery) {
-  $gallery->restricted_access = 1;
+function gallery_entity_publish_item($gallery) {
+  $gallery->status = 1;
+  gallery_entity_save($gallery);
+}
+
+/**
+ * Unpublish gallery
+ */
+function gallery_entity_unpublish_item($gallery) {
+  $gallery->status = 0;
+  gallery_entity_save($gallery);
+}
+
+/**
+ * Convert gallery to public
+ */
+function gallery_entity_convert_to_public($gallery) {
+  $gallery->restricted_access = 0;
   gallery_entity_save($gallery);
 }
 
 /**
  * Convert gallery to private
  */
-function gallery_entity_convert_to_public($gallery) {
+function gallery_entity_convert_to_private($gallery) {
   $gallery->restricted_access = 0;
   gallery_entity_save($gallery);
+}
+/**
+ * Publish category
+ */
+function gallery_entity_publish_category($category) {
+  $galleries = gallery_entity_get_category_galleries($category->tid);
+  //dpm($galleries);
+  $gallery_count = 0;
+  foreach($galleries as $gallery){
+    $gallery->status = 1;
+    gallery_entity_save($gallery);
+    $gallery_count++;
+  }
+  drupal_set_message(t('Published %gallery_count galleries.', array('%gallery_count' => $gallery_count)), 'status');
+}
+/**
+ * Unpublish category
+ */
+function gallery_entity_unpublish_category($category) {
+  $galleries = gallery_entity_get_category_galleries($category->tid);
+  //dpm($galleries);
+  $gallery_count = 0;
+  foreach($galleries as $gallery){
+    $gallery->status = 0;
+    gallery_entity_save($gallery);
+    $gallery_count++;
+  }
+  drupal_set_message(t('Unpublished %gallery_count galleries.', array('%gallery_count' => $gallery_count)), 'status');
+}
+
+/**
+ * Convert category to public
+ */
+function gallery_entity_convert_category_to_public($category) {
+  $galleries = gallery_entity_get_category_galleries($category->tid);
+  //dpm($galleries);
+  $gallery_count = 0;
+  foreach($galleries as $gallery){
+    $gallery->restricted_access = 0;
+    gallery_entity_save($gallery);
+    $gallery_count++; 
+  }
+  drupal_set_message(t('%gallery_count galleries changed to public.', array('%gallery_count' => $gallery_count)), 'status');
+}
+
+/**
+ * Convert category to private
+ */
+function gallery_entity_convert_category_to_private($category) {
+  $galleries = gallery_entity_get_category_galleries($category->tid);
+  //dpm($galleries);
+  $gallery_count = 0;
+  foreach($galleries as $gallery){
+    $gallery->restricted_access = 1;
+    gallery_entity_save($gallery);
+    $gallery_count++;
+  }
+  drupal_set_message(t('%gallery_count galleries changed to private.', array('%gallery_count' => $gallery_count)), 'status');
+}
+
+/**
+ * Delete category, category childrens and galleries
+ */
+function gallery_entity_delete_gallery_category($category) {
+  $categories_ids = array();
+  gallery_entity_get_category_childrens($category->tid, $categories_ids);
+  $galleries = gallery_entity_get_category_galleries($category->tid);
+  //dpm($galleries);
+  $gallery_count = 0;
+  foreach($galleries as $gallery){
+    //Delete gallery entity item
+    gallery_entity_delete($gallery);
+    $gallery_count++;
+  }
+  //dpm($categories_ids);
+  $category_count = 0;
+  foreach($categories_ids as $cid){
+    //Delete taxonomy term (category)
+    taxonomy_term_delete($cid);
+    $category_count++;
+  }
+  drupal_set_message(t('%category_count categories and %gallery_count galleries deleted.', array('%category_count' => $category_count, '%gallery_count' => $gallery_count)), 'status');
+}
+
+/**
+ * Get the galleries contained in a category and its sons.
+ */
+function gallery_entity_get_category_galleries($category_id){
+  $categories_ids = array();
+  gallery_entity_get_category_childrens($category_id, $categories_ids);
+  //dpm($categories_ids);
+  $result = db_select('field_data_gallery_category')->fields('field_data_gallery_category', array('entity_id'))->condition('gallery_category_tid', $categories_ids, 'IN')->execute();
+  $galleries = array();
+  foreach($result as $row){
+    $gallery_item_array = entity_load('gallery_entity', array($row->entity_id), array(), FALSE);
+    $gallery_item = array_shift(array_values($gallery_item_array));
+    if(isset($gallery_item) && $gallery_item != NULL) $galleries[] = $gallery_item;
+  }
+  return $galleries;
+}
+
+/**
+ * Get all childrens category
+ */
+function gallery_entity_get_category_childrens($category_id, &$categories_ids){
+  $categories_ids[] = $category_id;
+  $result = db_select('taxonomy_term_hierarchy')->fields('taxonomy_term_hierarchy', array('tid', 'parent'))->condition('parent', $category_id, '=')->execute();
+  if(sizeof($result) > 0){
+    foreach($result as $row){
+      //Recursive call
+      gallery_entity_get_category_childrens($row->tid, $categories_ids);
+    }
+  }
 }
 
 /**
@@ -449,7 +578,7 @@ function gallery_entity_delete($gallery) {
     $file = file_load($fid);
     if($file) file_delete($file);
   }
-	//pathauto_entity_path_delete_all('gallery_entity', $gallery, "gallery_entity/{$gallery->gid}");
+  //pathauto_entity_path_delete_all('gallery_entity', $gallery, "gallery_entity/{$gallery->gid}");
 }
 
 /**
@@ -712,6 +841,18 @@ function gallery_entity_action_info() {
       'configurable' => FALSE,
       'triggers' => array('any'),
     ),
+    'gallery_entity_publish_item_action' => array(
+      'label' => t('Publish gallery'),
+      'type' => 'gallery_entity',
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+    'gallery_entity_unpublish_item_action' => array(
+      'label' => t('Unpublish gallery'),
+      'type' => 'gallery_entity',
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
     'gallery_entity_convert_to_private_action' => array(
       'label' => t('Convert to private'),
       'type' => 'gallery_entity',
@@ -724,9 +865,33 @@ function gallery_entity_action_info() {
       'configurable' => FALSE,
       'triggers' => array('any'),
     ),
+    'gallery_entity_publish_category_action' => array(
+      'label' => t('Publish gallery category'),
+      'type' => 'taxonomy_term',
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+    'gallery_entity_unpublish_category_action' => array(
+      'label' => t('Unpublish gallery category'),
+      'type' => 'taxonomy_term',
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
     'gallery_entity_convert_category_to_private_action' => array(
-      'label' => t('Convert category to private'),
-      'type' => 'gallery_entity',
+      'label' => t('Convert gallery category to private'),
+      'type' => 'taxonomy_term',
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+    'gallery_entity_convert_category_to_public_action' => array(
+      'label' => t('Convert gallery category to public'),
+      'type' => 'taxonomy_term',
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+    'gallery_entity_delete_gallery_category' => array(
+      'label' => t('Delete Gallery category'),
+      'type' => 'taxonomy_term',
       'configurable' => FALSE,
       'triggers' => array('any'),
     ),
@@ -742,12 +907,28 @@ function gallery_entity_delete_action(&$entity, $context = array()) {
   gallery_entity_delete($entity);
 }
 /**
+ * Action function for gallery_entity_publish_item.
+ */
+function gallery_entity_publish_item_action(&$entity, $context = array()) {
+  //dpm($entity);
+  gallery_entity_publish_item($entity);
+}
+/**
+ * Action function for gallery_entity_unpublish_item.
+ */
+function gallery_entity_unpublish_item_action(&$entity, $context = array()) {
+  //dpm($entity);
+  gallery_entity_unpublish_item($entity);
+}
+
+/**
  * Action function for gallery_entity_convert_to_private.
  */
 function gallery_entity_convert_to_private_action(&$entity, $context = array()) {
   //dpm($entity);
   gallery_entity_convert_to_private($entity);
 }
+
 /**
  * Action function for gallery_entity_convert_to_public.
  */
@@ -756,9 +937,37 @@ function gallery_entity_convert_to_public_action(&$entity, $context = array()) {
   gallery_entity_convert_to_public($entity);
 }
 /**
+ * Action function for gallery_entity_publish_category.
+ */
+function gallery_entity_publish_category_action(&$entity, $context = array()) {
+  //dpm($entity);
+  gallery_entity_publish_category($entity);
+}
+/**
+ * Action function for gallery_entity_unpublish_category.
+ */
+function gallery_entity_unpublish_category_action(&$entity, $context = array()) {
+  //dpm($entity);
+  gallery_entity_unpublish_category($entity);
+}
+/**
+ * Action function for gallery_entity_convert_category_to_public.
+ */
+function gallery_entity_convert_category_to_public_action(&$entity, $context = array()) {
+  //dpm($entity);
+  gallery_entity_convert_category_to_public($entity);
+}
+/**
  * Action function for gallery_entity_convert_category_to_private.
  */
 function gallery_entity_convert_category_to_private_action(&$entity, $context = array()) {
-  // Code here.
+  //dpm($entity);
+  gallery_entity_convert_category_to_private($entity);
 }
-
+/**
+ * Action function for gallery_entity_delete_gallery_category.
+ */
+function gallery_entity_delete_gallery_category_action(&$entity, $context = array()) {
+  //dpm($entity);
+  gallery_entity_delete_gallery_category($entity);
+}
