@@ -101,6 +101,7 @@ function gallery_entity_menu() {
     'type' => MENU_LOCAL_ACTION,
     'tab_parent' => 'my_selection',
     'tab_root' => 'my_selection',
+    'options' => array('attributes'=>array('class'=>array('empty-selection-button'))),
     'weight' => 1,
   );
   $items['my_selection/zip'] = array(
@@ -112,6 +113,7 @@ function gallery_entity_menu() {
     'type' => MENU_LOCAL_ACTION,
     'tab_parent' => 'my_selection',
     'tab_root' => 'my_selection',
+    'options' => array('attributes'=>array('class'=>array('download-zip-button'))),
     'weight' => 2,
   );
   $items['my_selection/add/%'] = array(
@@ -764,13 +766,14 @@ function gallery_entity_preprocess_entity(&$variables){
   $gallery_entity = $variables['elements']['#entity'];
   if(user_access('download gallery_entity images')){
     $content['zip_link'] = array(
-      '#markup' => l(t('Create ZIP and download'), 'gallery/'.$gallery_entity->gid.'/zip'),
+      '#markup' => l(t('Create ZIP and download'), 'gallery/'.$gallery_entity->gid.'/zip', array('attributes' => array('class' => array('download-zip-button')))),
       '#weight' => 1,
     ); 
   }
-  //dpm($content);
+  //dpm($variables);
   if(isset($content['gallery_image'])){
     $gallery_image_items = $content['gallery_image']['#items'];
+    $counter = 1;
     foreach($gallery_image_items as $key => $image_item){
       $image_render_item = $content['gallery_image'][$key];
       $image_render_item['#prefix'] = '<div class="gallery_entity_image_box">';
@@ -782,12 +785,14 @@ function gallery_entity_preprocess_entity(&$variables){
       $remove_link = l($star_on_img, $image_remove_selection_url, array('attributes' => array('class' => 'use-ajax'), 'html' => TRUE));
       $my_selection = (isset($_SESSION['my_selection']) && $_SESSION['my_selection'] != NULL)? $_SESSION['my_selection'] : array();
       $final_link = (isset($my_selection[$image_item['fid']]))? $remove_link : $add_link;
-      $suffix_text = '<p align="center"><span id="image-'.$image_item['fid'].'-title" class="image-title">'.$image_item['title'].'</span>';
+      //$suffix_text = '<p align="center"><span id="image-'.$image_item['fid'].'-title" class="image-title">'.$image_item['title'].'</span>';
+      $suffix_text = '<p align="center"><span id="image-'.$image_item['fid'].'-title" class="image-title">'.$variables['title'].' '.$counter.'</span>';
       if(user_access('download gallery_entity images')) $suffix_text .= '<br/><span id="image-'.$image_item['fid'].'-link" class="image-link">'.$final_link.'</span>';
       $suffix_text .= '</p>';
       //dpm($image_item);
       $image_render_item['#suffix'] = $suffix_text.'</div>';
       $content['gallery_image'][$key] = $image_render_item;
+      $counter++;
     }
   }
   $variables['content'] = $content;
