@@ -48,7 +48,7 @@ class GalleryEntityController extends EntityAPIController {
    * Scan a folder and creates taxonomy terms for gallery categorization.
    * Creates the gallery entities and import the images to each gallery.
    */
-  public function scan_folder($path, $vid, &$parents_ids=array(), &$function_resp=array(), $level=0, $gallery_id=0){
+  public function scan_folder($path, $vid, &$parents_ids=array(), &$function_resp=array(), $level=0, $gallery_id=0, $scan_type='USER'){
   	//$folder = $_SERVER['DOCUMENT_ROOT']."/FTP_ITEMS/";
   	$ftp_folder = scandir($path);
   	foreach($ftp_folder as $folder_item){
@@ -135,7 +135,7 @@ class GalleryEntityController extends EntityAPIController {
   
   
   					$new_path .= "/";
-  					$this->scan_folder($new_path, $vid, $parents_ids, $function_resp, $level+1);
+  					$this->scan_folder($new_path, $vid, $parents_ids, $function_resp, $level+1, 0, $scan_type);
   				}else{
   					//Gallery entity image
   					if($gallery_id != 0){
@@ -249,7 +249,7 @@ class GalleryEntityController extends EntityAPIController {
   						);
   					}
   					
-  					$this->scan_folder($new_path, $vid, $parents_ids, $function_resp, $level+1, $gallery_item->gid);
+  					$this->scan_folder($new_path, $vid, $parents_ids, $function_resp, $level+1, $gallery_item->gid, $scan_type);
   				}
   			}
   		}

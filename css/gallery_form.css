@@ -1,0 +1,22 @@
+
+.gallery-form-permissions .fieldset-wrapper
+{
+	overflow:hidden;
+}
+
+.gallery-form-permissions .fieldset-wrapper input
+{
+	float:left;
+	margin-top:60px;
+}
+
+.form-item-system-users,.form-item-gallery-users{
+	_border:solid 1px red;
+	float:left;
+	margin-right:10px;
+}
+.form-item-system-users select,.form-item-gallery-users select
+{
+	_border:solid 1px red;
+	width:100%;
+}

@@ -76,6 +76,40 @@ function gallery_entity_entity_info_alter(&$entity_info) {
 }
 
 /**
+ * Implements hook_cron().
+ */
+function gallery_entity_cron(){
+  $vocabularies = taxonomy_vocabulary_get_names();
+  //die(serialize($vocabularies));
+  //$pos = array_search('gallery_category_test', $vocabularies);
+  $vid = FALSE;
+  if(isset($vocabularies['gallery_category'])){
+    $voc_obj = (object) $vocabularies['gallery_category'];
+    $vid = $voc_obj->vid;
+  }
+  if(!$vid){
+    // arrays are more convenient to initialize
+    $vocabulary = array(
+      'name' => t('Gallery Category'),
+      'machine_name' => 'gallery_category',
+      'description' => t('Taxonomy categorization for gallery items'),
+      'hierarchy' => 1,
+      'module' => 'gallery_entity',
+      'weight' => 1,
+    );
+    $vocabulary = (object) $vocabulary;
+    taxonomy_vocabulary_save($vocabulary);
+    $vid = $vocabulary->vid;
+  }
+  
+  $folder = $_SERVER['DOCUMENT_ROOT']."/FTP_ITEMS/";
+  $parents_ids = array();
+  $scan_folder_info = array();
+  $folder_info = entity_get_controller('gallery_entity')->scan_folder($folder, $vid, $parents_ids, $scan_folder_info, 0, 'SYSTEM');
+  watchdog('gallery_entity', 'Cron import executed: %scan_folder_info', array('%scan_folder_info' => serialize($scan_folder_info)), WATCHDOG_INFO);
+}
+
+/**
  * Implements hook_menu().
  */
 function gallery_entity_menu() {
@@ -766,7 +800,7 @@ function gallery_entity_preprocess_entity(&$variables){
   $gallery_entity = $variables['elements']['#entity'];
   if(user_access('download gallery_entity images')){
     $content['zip_link'] = array(
-      '#markup' => l(t('Create ZIP and download'), 'gallery/'.$gallery_entity->gid.'/zip', array('attributes' => array('class' => array('download-zip-button')))),
+      '#markup' => '<div class="action-links">'.l(t('Create ZIP and download'), 'gallery/'.$gallery_entity->gid.'/zip', array('attributes' => array('class' => array('download-zip-button')))).'</div>',
       '#weight' => 1,
     ); 
   }
@@ -786,8 +820,12 @@ function gallery_entity_preprocess_entity(&$variables){
       $my_selection = (isset($_SESSION['my_selection']) && $_SESSION['my_selection'] != NULL)? $_SESSION['my_selection'] : array();
       $final_link = (isset($my_selection[$image_item['fid']]))? $remove_link : $add_link;
       //$suffix_text = '<p align="center"><span id="image-'.$image_item['fid'].'-title" class="image-title">'.$image_item['title'].'</span>';
-      $suffix_text = '<p align="center"><span id="image-'.$image_item['fid'].'-title" class="image-title">'.$variables['title'].' '.$counter.'</span>';
-      if(user_access('download gallery_entity images')) $suffix_text .= '<br/><span id="image-'.$image_item['fid'].'-link" class="image-link">'.$final_link.'</span>';
+      $counter_string = '';
+      if($counter <= 9) $counter_string = '00'.($counter);
+      elseif($counter > 9 && $counter <= 99) $counter_string = '0'.($counter);
+      elseif($counter > 99) $counter_string = ($counter);
+      $suffix_text = '<p align="center"><span id="image-'.$image_item['fid'].'-title" class="image-title">'.$variables['title'].' '.$counter_string.'</span>';
+      if(user_access('download gallery_entity images')) $suffix_text .= '<span id="image-'.$image_item['fid'].'-link" class="image-link">'.$final_link.'</span>';
       $suffix_text .= '</p>';
       //dpm($image_item);
       $image_render_item['#suffix'] = $suffix_text.'</div>';
@@ -815,7 +853,7 @@ function gallery_entity_preprocess_my_selection(&$variables){
     $large_url = image_style_url('large', $img_url);
     $medium_url = image_style_url('medium', $img_url);
     $html_string = '<div class="gallery_entity_image_box">';
-    $img_styled = '<a href="'.$large_url.'" class="lightbox-processed"><img src="'.$medium_url.'" class="image_selection"/></a>';
+    $img_styled = '<a href="'.$large_url.'" rel="lightbox" title=""><img src="'.$medium_url.'" class="image_selection"/></a>';
     
     $image_remove_selection_url = '/my_selection/remove/'.$fid;
     //$remove_link = l(t('Remove from selection'), $image_add_selection_url, array('attributes' => array('class' => 'use-ajax')));

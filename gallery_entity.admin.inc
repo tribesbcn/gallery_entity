@@ -290,6 +290,7 @@ function gallery_entity_form($form, &$form_state, $gallery) {
 	  			'class' => array('gallery-form-permissions'),
 	  		),
 	  		'#attached' => array(
+	  			'css' => array(drupal_get_path('module', 'gallery_entity').'/css/gallery_form.css'),
 	  			'js' => array(drupal_get_path('module', 'gallery_entity') . '/js/gallery.admin.js'),
 	  		),
 	  		'#weight' => 96,

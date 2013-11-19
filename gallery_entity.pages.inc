@@ -61,7 +61,7 @@ function gallery_entity_view_selected_images(){
  */
 function gallery_entity_add_image_to_selected($image_fid, $type = 'ajax'){
 	$file = file_load($image_fid);
-	//dpm($file);
+	dpm($file);
 	$my_selection = (isset($_SESSION['my_selection']) && $_SESSION['my_selection'] != NULL)? $_SESSION['my_selection'] : array();
 	$my_selection[$image_fid] = $file;
 	//dpm($my_selection);
