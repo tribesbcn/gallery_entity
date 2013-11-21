@@ -166,6 +166,27 @@ class GalleryEntityController extends EntityAPIController {
   							$file->filename = str_replace(" ", "_", $gallery_entity_parent->name).'_'.$file->fid.$file_ext;
   							$file = file_save($file);
   							//dpm($file);
+								
+								
+								if(module_exists('media')){
+									//WE NEED TO STORE THE TITLE INFO IN 'field_revision_field_file_image_title_text' DB TABLE.
+									$media_title_field = array(
+										'entity_type' => 'file',
+										'bundle' => 'image',
+										'deleted' => 0,
+										'entity_id' => $file->fid,
+										'revision_id' => $file->fid,
+										'language' => LANGUAGE_NONE,
+										'delta' => 0,
+										'field_file_image_title_text_value' => $image_title,
+										'field_file_image_title_text_format' => NULL,
+									);
+									//dpm($media_title_field);
+									//Save the data and revision title field for file entity image.
+									$ok_data =	db_insert('field_data_field_file_image_title_text')->fields($media_title_field)->execute();
+									$ok_rev =	db_insert('field_revision_field_file_image_title_text')->fields($media_title_field)->execute();
+								}
+								
   							$field_info_array = (array)$file;
   							//dpm($field_info_array);
   							

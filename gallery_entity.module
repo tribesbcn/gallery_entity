@@ -845,22 +845,24 @@ function gallery_entity_preprocess_entity(&$variables){
 function gallery_entity_preprocess_my_selection(&$variables){
   //dpm($variables);
   drupal_add_library('system', 'drupal.ajax');
-  
   $my_selection = $variables['images'];
   $content = array();
   foreach($my_selection as $fid => $file){
     $img_url = $file->uri;
+		$img_title_obj = $file->field_file_image_title_text;
+		$img_title = (is_array($img_title_obj))? $img_title_obj[LANGUAGE_NONE][0]['safe_value'] : '';
     $large_url = image_style_url('large', $img_url);
     $medium_url = image_style_url('medium', $img_url);
     $html_string = '<div class="gallery_entity_image_box">';
-    $img_styled = '<a href="'.$large_url.'" rel="lightbox" title=""><img src="'.$medium_url.'" class="image_selection"/></a>';
+    $img_styled = '<a href="'.$large_url.'" rel="lightbox" title="'.$img_title.'"><img src="'.$medium_url.'" class="image_selection"/></a>';
     
     $image_remove_selection_url = '/my_selection/remove/'.$fid;
     //$remove_link = l(t('Remove from selection'), $image_add_selection_url, array('attributes' => array('class' => 'use-ajax')));
     $star_on_img = '<img src="/'.drupal_get_path('module', 'gallery_entity').'/img/star_on.png'.'" alt="'.t('Remove from selection').'" />';
     $remove_link = '<a href="'.$image_remove_selection_url.'" class="use-ajax">'.$star_on_img.'</a>';
-    
-    $html_string .= $img_styled.'<p align="center"><span id="image-'.$fid.'-link" class="image-link">'.$remove_link.'</span></p></div>';
+    //dpm($file);
+    $title_span = '<span id="image-'.$fid.'-title" class="image-title">'.$img_title.' '.$counter_string.'</span>';
+    $html_string .= $img_styled.'<p align="center">'.$title_span.'<span id="image-'.$fid.'-link" class="image-link">'.$remove_link.'</span></p></div>';
     $content[] = $html_string;
   }
   $variables['content_items'] = $content;
