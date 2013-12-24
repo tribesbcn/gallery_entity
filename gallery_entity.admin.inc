@@ -118,41 +118,58 @@ function gallery_entity_admin_add_page() {
  * Page with results of structure and image import.
  */
 function gallery_entity_admin_import_folder() {
-	$vocabularies = taxonomy_vocabulary_get_names();
-	//die(serialize($vocabularies));
-	//$pos = array_search('gallery_category_test', $vocabularies);
-	$vid = FALSE;
-	if(isset($vocabularies['gallery_category'])){
-		$voc_obj = (object) $vocabularies['gallery_category'];
-		$vid = $voc_obj->vid;
+	if (!lock_acquire('gallery_entity_import_folder', 6500.0)) {
+		// Wait for another request that is already doing this work.
+		watchdog('gallery_entity_import', 'Function scan_folder is executing', array(), WATCHDOG_INFO);
+		lock_wait('gallery_entity_import_folder');
+		return FALSE;
 	}
-	if(!$vid){
-		// arrays are more convenient to initialize
-		$vocabulary = array(
-			'name' => t('Gallery Category'),
-			'machine_name' => 'gallery_category',
-			'description' => t('Taxonomy categorization for gallery items'),
-			'hierarchy' => 1,
-			'module' => 'gallery_entity',
-			'weight' => 1,
+	
+	$content = array();
+	try{
+		$vocabularies = taxonomy_vocabulary_get_names();
+		//die(serialize($vocabularies));
+		//$pos = array_search('gallery_category_test', $vocabularies);
+		$vid = FALSE;
+		if(isset($vocabularies['gallery_category'])){
+			$voc_obj = (object) $vocabularies['gallery_category'];
+			$vid = $voc_obj->vid;
+		}
+		if(!$vid){
+			// arrays are more convenient to initialize
+			$vocabulary = array(
+				'name' => t('Gallery Category'),
+				'machine_name' => 'gallery_category',
+				'description' => t('Taxonomy categorization for gallery items'),
+				'hierarchy' => 1,
+				'module' => 'gallery_entity',
+				'weight' => 1,
+			);
+			$vocabulary = (object) $vocabulary;
+			taxonomy_vocabulary_save($vocabulary);
+			$vid = $vocabulary->vid;
+		}
+		
+		$folder = $_SERVER['DOCUMENT_ROOT']."/FTP_ITEMS/";
+		$parents_ids = array();
+		$scan_folder_info = array();
+		$folder_info = entity_get_controller('gallery_entity')->scan_folder($folder, $vid, $parents_ids, $scan_folder_info, 0);
+		//dpm($parents_ids);
+		$content = $scan_folder_info;
+		watchdog('gallery_entity_import', 'Cron import executed: %scan_folder_info', array('%scan_folder_info' => serialize($scan_folder_info)), WATCHDOG_INFO);
+		$content[] = array(
+			'#type' => 'markup',
+			'#markup' => '<h3>Scan Folder Finished</h3>',
 		);
-		$vocabulary = (object) $vocabulary;
-		taxonomy_vocabulary_save($vocabulary);
-		$vid = $vocabulary->vid;
+	}catch(Exception $e){
+		//$e->getMessage();
+		watchdog('gallery_entity_import', 'Cron import failed: %error_message', array('%error_message' => $e->getMessage()), WATCHDOG_ERROR);
+		$content[] = array(
+			'#type' => 'markup',
+			'#markup' => '<h3>Scan Folder Failed</h3><p>'.$e->getMessage().'</p>',
+		);
 	}
-	
-	$folder = $_SERVER['DOCUMENT_ROOT']."/FTP_ITEMS/";
-	$parents_ids = array();
-	$scan_folder_info = array();
-	$folder_info = entity_get_controller('gallery_entity')->scan_folder($folder, $vid, $parents_ids, $scan_folder_info, 0);
-	//dpm($parents_ids);
-	
-	//$content = array();
-	$content = $scan_folder_info;
-	$content[] = array(
-		'#type' => 'markup',
-		'#markup' => '<h3>Scan Folder Finished</h3>',
-	);
+	lock_release('gallery_entity_import_folder');
 	return $content;
 }
 

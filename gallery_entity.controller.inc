@@ -52,7 +52,7 @@ class GalleryEntityController extends EntityAPIController {
   	//$folder = $_SERVER['DOCUMENT_ROOT']."/FTP_ITEMS/";
   	$ftp_folder = scandir($path);
   	foreach($ftp_folder as $folder_item){
-  		if($folder_item != "." && $folder_item != ".."){
+  		if($folder_item != "." && $folder_item != ".." && $folder_item != 'Thumbs.db'){
   			$new_path = $path.$folder_item;
   			$first_slash_pos = strpos($folder_item, "_");
   			$last_slash_pos = strrpos($folder_item, "_");
@@ -139,78 +139,85 @@ class GalleryEntityController extends EntityAPIController {
   				}else{
   					//Gallery entity image
   					if($gallery_id != 0){
-  						//Retrieve the gallery entity item
-  						$gallery_entity_query = entity_load('gallery_entity', array($gallery_id), array(), FALSE);
-  						$gallery_entity_parent = (count($gallery_entity_query) != 0)? reset($gallery_entity_query) : NULL;
-  						if($gallery_entity_parent != NULL){
-  							//Check if current gallery have images and get or construct it.
-  							$gallery_have_images = isset($gallery_entity_parent->gallery_image) && isset($gallery_entity_parent->gallery_image[LANGUAGE_NONE]);
-  							$gallery_image_array = ($gallery_have_images)? $gallery_entity_parent->gallery_image[LANGUAGE_NONE] : array();
-  							// Create managed File object and associate with Image field.
-  							$number = '';
-  							if(count($gallery_image_array) < 9) $number = '00'.(count($gallery_image_array)+1);
-  							elseif(count($gallery_image_array) >= 9 && count($gallery_image_array) < 99) $number = '0'.(count($gallery_image_array)+1);
-  							elseif(count($gallery_image_array) >= 99) $number = (count($gallery_image_array)+1);
-  							$image_title = $gallery_entity_parent->name." ".$number;
-  							$file = (object) array(
-  									'uid' => 1,
-  									'uri' => $new_path,
-  									'filename' => str_replace(" ", "_", $item_name),
-  									'filemime' => file_get_mimetype($new_path),
-  									'status' => 1,
-  									'title' => $image_title,
-  							);
-  							// We save the file to the root of the files directory.
-  							$file = file_move($file, 'private://fashion_show/');
-  							$file_ext = substr($new_path, strrpos($new_path, '.'));
-  							$file->filename = str_replace(" ", "_", $gallery_entity_parent->name).'_'.$file->fid.$file_ext;
-  							$file = file_save($file);
-  							//dpm($file);
-								
-								
-								if(module_exists('media')){
-									//WE NEED TO STORE THE TITLE INFO IN 'field_revision_field_file_image_title_text' DB TABLE.
-									$media_title_field = array(
-										'entity_type' => 'file',
-										'bundle' => 'image',
-										'deleted' => 0,
-										'entity_id' => $file->fid,
-										'revision_id' => $file->fid,
-										'language' => LANGUAGE_NONE,
-										'delta' => 0,
-										'field_file_image_title_text_value' => $image_title,
-										'field_file_image_title_text_format' => NULL,
-									);
-									//dpm($media_title_field);
-									//Save the data and revision title field for file entity image.
-									$ok_data =	db_insert('field_data_field_file_image_title_text')->fields($media_title_field)->execute();
-									$ok_rev =	db_insert('field_revision_field_file_image_title_text')->fields($media_title_field)->execute();
-								}
-								
-  							$field_info_array = (array)$file;
-  							//dpm($field_info_array);
-  							
-  							//Añadimos las imagenes al disenyador
-  							
-  							//$gallery_wrapper = entity_metadata_wrapper('gallery_entity', $gallery_entity_parent);
-  							//$gallery_wrapper->gallery_image[] = $field_info_array;
-  							//$gallery_wrapper->save();
-  							//$gallery_entity_parent = $gallery_wrapper->value();	
-  							
-  							//$gallery_image_array[LANGUAGE_NONE][] = $field_info_array;
-  							array_push($gallery_image_array, $field_info_array);
-  							//dpm($gallery_image_array);
-  							$gallery_entity_parent->gallery_image = array(LANGUAGE_NONE => $gallery_image_array);
-  							//Update the gallery entity
-  							entity_save('gallery_entity', $gallery_entity_parent);
-  							// CON ENTITY API SE GUARDA EL file_usage() AUTOMATICAMENTE (FILE MODULE)
-  							//$gallery_entity_parent = $this->save($gallery_entity_parent);
-  							//file_usage_add($file, 'gallery_entity', 'gallery_entity', $gallery_entity_parent->gid);
-  							
-  							
-  							//dpm($gallery_entity_parent);
-  							//dpm("GALLERY IMAGE: ".$item_name."||".$level."|| PATH: ".$new_path);
+  						try{
+	  						//Retrieve the gallery entity item
+	  						$gallery_entity_query = entity_load('gallery_entity', array($gallery_id), array(), FALSE);
+	  						$gallery_entity_parent = (count($gallery_entity_query) != 0)? reset($gallery_entity_query) : NULL;
+	  						if($gallery_entity_parent != NULL){
+	  							//Check if current gallery have images and get or construct it.
+	  							$gallery_have_images = isset($gallery_entity_parent->gallery_image) && isset($gallery_entity_parent->gallery_image[LANGUAGE_NONE]);
+	  							$gallery_image_array = ($gallery_have_images)? $gallery_entity_parent->gallery_image[LANGUAGE_NONE] : array();
+	  							// Create managed File object and associate with Image field.
+	  							$number = '';
+	  							if(count($gallery_image_array) < 9) $number = '00'.(count($gallery_image_array)+1);
+	  							elseif(count($gallery_image_array) >= 9 && count($gallery_image_array) < 99) $number = '0'.(count($gallery_image_array)+1);
+	  							elseif(count($gallery_image_array) >= 99) $number = (count($gallery_image_array)+1);
+	  							$image_title = $gallery_entity_parent->name." ".$number;
+	  							$file = (object) array(
+	  									'uid' => 1,
+	  									'uri' => $new_path,
+	  									'filename' => str_replace(" ", "_", $item_name),
+	  									'filemime' => file_get_mimetype($new_path),
+	  									'status' => 1,
+	  									'title' => $image_title,
+	  							);
+	  							// We save the file to the root of the files directory.
+	  							$file = file_move($file, 'private://fashion_show/');
+	  							$file_ext = substr($new_path, strrpos($new_path, '.'));
+	  							$file->filename = str_replace(" ", "_", $gallery_entity_parent->name).'_'.$file->fid.$file_ext;
+	  							$file = file_save($file);
+	  							//dpm($file);
+									
+									
+									if(module_exists('media')){
+										//WE NEED TO STORE THE TITLE INFO IN 'field_revision_field_file_image_title_text' DB TABLE.
+										$media_title_field = array(
+											'entity_type' => 'file',
+											'bundle' => 'image',
+											'deleted' => 0,
+											'entity_id' => $file->fid,
+											'revision_id' => $file->fid,
+											'language' => LANGUAGE_NONE,
+											'delta' => 0,
+											'field_file_image_title_text_value' => $image_title,
+											'field_file_image_title_text_format' => NULL,
+										);
+										//dpm($media_title_field);
+										//Save the data and revision title field for file entity image.
+										$ok_data =	db_insert('field_data_field_file_image_title_text')->fields($media_title_field)->execute();
+										$ok_rev =	db_insert('field_revision_field_file_image_title_text')->fields($media_title_field)->execute();
+									}
+									
+	  							$field_info_array = (array)$file;
+	  							//dpm($field_info_array);
+	  							
+	  							//Añadimos las imagenes al disenyador
+	  							
+	  							//$gallery_wrapper = entity_metadata_wrapper('gallery_entity', $gallery_entity_parent);
+	  							//$gallery_wrapper->gallery_image[] = $field_info_array;
+	  							//$gallery_wrapper->save();
+	  							//$gallery_entity_parent = $gallery_wrapper->value();	
+	  							
+	  							//$gallery_image_array[LANGUAGE_NONE][] = $field_info_array;
+	  							array_push($gallery_image_array, $field_info_array);
+	  							//dpm($gallery_image_array);
+	  							$gallery_entity_parent->gallery_image = array(LANGUAGE_NONE => $gallery_image_array);
+	  							//Update the gallery entity
+	  							entity_save('gallery_entity', $gallery_entity_parent);
+	  							// CON ENTITY API SE GUARDA EL file_usage() AUTOMATICAMENTE (FILE MODULE)
+	  							//$gallery_entity_parent = $this->save($gallery_entity_parent);
+	  							//file_usage_add($file, 'gallery_entity', 'gallery_entity', $gallery_entity_parent->gid);
+	  							
+	  							
+	  							//dpm($gallery_entity_parent);
+	  							//dpm("GALLERY IMAGE: ".$item_name."||".$level."|| PATH: ".$new_path);
+	  						}
+  						}catch(Exception $e){ 
+  							watchdog('gallery_entity_import', 'Failed inserting image (@path) with exception @exception!', array('@path' => $new_path, '@exception' => $e->getMessage()));
   						}
+  					}else{
+  						//Trying to insert image in taxonomy term
+  						watchdog('gallery_entity_import', 'Failed inserting image (@path) into taxonomy term!', array('@path' => $new_path));
   					}
   				}
   			}else{
@@ -232,21 +239,22 @@ class GalleryEntityController extends EntityAPIController {
   					for($xlev = $level; $xlev > 0; $xlev--) $markup_msg .= ' --- ';
   					$markup_msg .= $item_name;
   					
+  					//dpm("Name: ".$item_name);
+  					
   					if(count($result) == 0){
   						//The gallery item does not exist. Create new one.
   						$gallery_item->name = $item_name;
   						$gallery_item->gallery_category = $gallery_category;
+  						//dpm($gallery_item);
   						entity_save('gallery_entity', $gallery_item);
   						//$gallery_item = $this->save($gallery_item);
   						
   						$markup_msg .= ' <span style="color:#0F0">(NEW GALLERY)</span><br/>';
-  						//dpm($gallery_item);
   						//dpm("DESIGNER NAME: ".$item_name."||".$level);
   					}else{
   						//The gallery item exist.
   						$original_gallery = (object)reset($result['gallery_entity']);
   						$gallery_item->gid = $original_gallery->gid;
-  						
   						$markup_msg .= ' <span style="color:#F00">(EXISTING GALLERY)</span><br/>';
   						//dpm('GALLERY ITEM EXIST!!! ('.$item_name.')');
   					}
@@ -271,6 +279,9 @@ class GalleryEntityController extends EntityAPIController {
   					}
   					
   					$this->scan_folder($new_path, $vid, $parents_ids, $function_resp, $level+1, $gallery_item->gid, $scan_type);
+  				}else{
+  					//Trying to insert image in taxonomy term
+  					watchdog('gallery_entity_import', 'Failed inserting designer (@path) because is not a directory!', array('@path' => $new_path));
   				}
   			}
   		}

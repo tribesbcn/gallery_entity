@@ -79,34 +79,47 @@ function gallery_entity_entity_info_alter(&$entity_info) {
  * Implements hook_cron().
  */
 function gallery_entity_cron(){
-  $vocabularies = taxonomy_vocabulary_get_names();
-  //die(serialize($vocabularies));
-  //$pos = array_search('gallery_category_test', $vocabularies);
-  $vid = FALSE;
-  if(isset($vocabularies['gallery_category'])){
-    $voc_obj = (object) $vocabularies['gallery_category'];
-    $vid = $voc_obj->vid;
-  }
-  if(!$vid){
-    // arrays are more convenient to initialize
-    $vocabulary = array(
-      'name' => t('Gallery Category'),
-      'machine_name' => 'gallery_category',
-      'description' => t('Taxonomy categorization for gallery items'),
-      'hierarchy' => 1,
-      'module' => 'gallery_entity',
-      'weight' => 1,
-    );
-    $vocabulary = (object) $vocabulary;
-    taxonomy_vocabulary_save($vocabulary);
-    $vid = $vocabulary->vid;
+  if (!lock_acquire('gallery_entity_import_folder', 6500.0)) {
+    // Wait for another request that is already doing this work.
+    watchdog('gallery_entity_import', 'Function scan_folder is executing', array(), WATCHDOG_INFO);
+    lock_wait('gallery_entity_import_folder');
+    return FALSE;
   }
   
-  $folder = $_SERVER['DOCUMENT_ROOT']."/FTP_ITEMS/";
-  $parents_ids = array();
-  $scan_folder_info = array();
-  $folder_info = entity_get_controller('gallery_entity')->scan_folder($folder, $vid, $parents_ids, $scan_folder_info, 0, 'SYSTEM');
-  watchdog('gallery_entity', 'Cron import executed: %scan_folder_info', array('%scan_folder_info' => serialize($scan_folder_info)), WATCHDOG_INFO);
+  $content = array();
+  try{
+    $vocabularies = taxonomy_vocabulary_get_names();
+    //die(serialize($vocabularies));
+    //$pos = array_search('gallery_category_test', $vocabularies);
+    $vid = FALSE;
+    if(isset($vocabularies['gallery_category'])){
+      $voc_obj = (object) $vocabularies['gallery_category'];
+      $vid = $voc_obj->vid;
+    }
+    if(!$vid){
+      // arrays are more convenient to initialize
+      $vocabulary = array(
+        'name' => t('Gallery Category'),
+        'machine_name' => 'gallery_category',
+        'description' => t('Taxonomy categorization for gallery items'),
+        'hierarchy' => 1,
+        'module' => 'gallery_entity',
+        'weight' => 1,
+      );
+      $vocabulary = (object) $vocabulary;
+      taxonomy_vocabulary_save($vocabulary);
+      $vid = $vocabulary->vid;
+    }
+    
+    $folder = $_SERVER['DOCUMENT_ROOT']."/FTP_ITEMS/";
+    $parents_ids = array();
+    $scan_folder_info = array();
+    $folder_info = entity_get_controller('gallery_entity')->scan_folder($folder, $vid, $parents_ids, $scan_folder_info, 0, 'SYSTEM');
+    watchdog('gallery_entity_import', 'Cron import executed: %scan_folder_info', array('%scan_folder_info' => serialize($scan_folder_info)), WATCHDOG_INFO);
+  }catch(Exception $e){
+    watchdog('gallery_entity_import', 'Cron import failed: %error_message', array('%error_message' => $e->getMessage()), WATCHDOG_ERROR);
+  }
+  lock_release('gallery_entity_import_folder');
 }
 
 /**
@@ -600,12 +613,16 @@ function gallery_entity_get_category_childrens($category_id, &$categories_ids){
  */
 function gallery_entity_delete($gallery) {
   //Keep the fid of gallery images
-  $wrapper = entity_metadata_wrapper('gallery_entity', $gallery);
-  $image_list = $wrapper->gallery_image;
-  $image_fids = array();
-  foreach($image_list as $g_img){
-    $image_fids[] = $g_img->file->fid->value();
-  }
+	$image_fids = array();
+	try{
+		$wrapper = entity_metadata_wrapper('gallery_entity', $gallery);
+		$image_list = $wrapper->gallery_image;
+		foreach($image_list as $g_img){
+			$image_fids[] = $g_img->file->fid->value();
+		}
+	}catch(Exception $e){
+		watchdog('gallery_entity', 'Failed retrieving gallery images: %error_message', array('%error_message' => $e->getMessage()), WATCHDOG_ERROR);
+	}
   //dpm($image_fids);
   //Delete the entity
   entity_delete('gallery_entity', entity_id('gallery_entity' ,$gallery));
@@ -861,7 +878,7 @@ function gallery_entity_preprocess_my_selection(&$variables){
     $star_on_img = '<img src="/'.drupal_get_path('module', 'gallery_entity').'/img/star_on.png'.'" alt="'.t('Remove from selection').'" />';
     $remove_link = '<a href="'.$image_remove_selection_url.'" class="use-ajax">'.$star_on_img.'</a>';
     //dpm($file);
-    $title_span = '<span id="image-'.$fid.'-title" class="image-title">'.$img_title.' '.$counter_string.'</span>';
+    $title_span = '<span id="image-'.$fid.'-title" class="image-title">'.$img_title.'</span>';
     $html_string .= $img_styled.'<p align="center">'.$title_span.'<span id="image-'.$fid.'-link" class="image-link">'.$remove_link.'</span></p></div>';
     $content[] = $html_string;
   }
